@@ -44,9 +44,51 @@ if (!fs.existsSync(uploadsDir_avatars)) {
   fs.mkdirSync(uploadsDir_avatars, { recursive: true });
 }
 
-// Middleware
+// Middleware - CORS configuration
+// Normalize origin by removing trailing slash for comparison
+const normalizeOrigin = (origin) => {
+  if (!origin) return null;
+  return origin.replace(/\/$/, '');
+};
+
+// Get allowed origins (normalized for comparison)
+const getAllowedOrigins = () => {
+  const origins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://halchash.com',
+    'https://www.halchash.com'
+  ];
+  
+  // Add FRONTEND_URL from env if provided (normalized)
+  if (process.env.FRONTEND_URL) {
+    const envOrigin = normalizeOrigin(process.env.FRONTEND_URL);
+    if (!origins.includes(envOrigin)) {
+      origins.push(envOrigin);
+    }
+  }
+  
+  return origins.map(normalizeOrigin);
+};
+
+const allowedOrigins = getAllowedOrigins();
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const normalizedOrigin = normalizeOrigin(origin);
+    
+    // Check if normalized origin is in allowed list
+    if (allowedOrigins.includes(normalizedOrigin)) {
+      // Return the exact origin that was requested (not normalized)
+      callback(null, origin);
+    } else {
+      console.error(`CORS blocked origin: ${origin} (normalized: ${normalizedOrigin})`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 app.use(cookieParser());
